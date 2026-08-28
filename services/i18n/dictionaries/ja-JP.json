@@ -1,0 +1,59 @@
+{
+  "app_title": "化学ロジック対抗問題生成器",
+  "app_description": "大規模言語モデルを使用して、極めて難しい化学競技問題を生成する",
+
+  "nav_language": "言語",
+  "nav_mode": "生成モード",
+  "nav_help": "ヘルプ",
+
+  "mode_single": "単一問題",
+  "mode_batch": "一括生成",
+  "mode_knowledge_points": "知識点による生成",
+
+  "input_topic": "化学のテーマ",
+  "input_topic_placeholder": "例：化学平衡",
+  "input_count": "問題数",
+  "input_count_placeholder": "1-100",
+  "input_trap_count": "トラップ数 (0-5)",
+  "input_trap_placeholder": "推奨値：2-3",
+  "input_language": "問題の言語",
+  "input_sheets_url": "Google Sheets URL (オプション)",
+  "input_sheets_placeholder": "https://script.google.com/macros/s/.../exec",
+
+  "button_generate": "生成",
+  "button_generating": "処理中...",
+  "button_export": "JSON にエクスポート",
+  "button_export_sheets": "Sheets にエクスポート",
+  "button_reset": "リセット",
+
+  "stage_idle": "待機中",
+  "stage_node0": "ノード 0: 入力検証",
+  "stage_node1": "ノード 1: 知識ベース照会",
+  "stage_node2": "ノード 2: 基礎問題生成",
+  "stage_node3": "ノード 3: トラップ注入",
+  "stage_node4": "ノード 4: 一貫性検証",
+  "stage_node5": "ノード 5: 妥当性チェックと求解",
+  "stage_node7": "ノード 7: 最終組立",
+  "stage_completed": "完了",
+  "stage_error": "エラー",
+
+  "result_problem_title": "問題",
+  "result_topic": "テーマ",
+  "result_traps": "トラップ",
+  "result_detail_original": "元の問題",
+  "result_detail_modified": "トラップ付き問題",
+  "result_detail_core_data": "コアデータ",
+  "result_detail_distractor": "妨害データ",
+  "result_detail_solution": "安全な解答",
+  "result_detail_answer": "最終答案",
+
+  "error_generation_failed": "生成失敗",
+  "error_sanity_check": "妥当性チェック失敗",
+  "error_invalid_input": "無効な入力",
+  "error_network": "ネットワークエラー",
+
+  "warning_url_format": "URL 形式が正しくない可能性があります",
+  "info_saved": "保存済み",
+  "info_saved_count": "保存済み問題数",
+  "info_error_count": "保存エラー数"
+}

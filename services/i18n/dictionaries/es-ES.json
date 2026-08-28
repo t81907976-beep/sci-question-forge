@@ -1,0 +1,10 @@
+{
+  "app_title": "Generador de Problemas de Química Adversarial",
+  "app_description": "Genere problemas de química competitivos extremadamente desafiantes utilizando modelos de lenguaje grande",
+  "input_topic": "Tema de Química",
+  "input_topic_placeholder": "p. ej.: Equilibrio Químico",
+  "button_generate": "Generar",
+  "button_generating": "Procesando...",
+  "stage_completed": "Completado",
+  "error_generation_failed": "Generación fallida"
+}

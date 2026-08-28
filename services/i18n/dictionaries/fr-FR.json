@@ -1,0 +1,10 @@
+{
+  "app_title": "Générateur de Problèmes Chimiques Adversaires",
+  "app_description": "Générez des problèmes de chimie extrêmement difficiles à l'aide de modèles de langage de grande taille",
+  "input_topic": "Sujet de Chimie",
+  "input_topic_placeholder": "p. ex.: Équilibre Chimique",
+  "button_generate": "Générer",
+  "button_generating": "Traitement en cours...",
+  "stage_completed": "Terminé",
+  "error_generation_failed": "Génération échouée"
+}

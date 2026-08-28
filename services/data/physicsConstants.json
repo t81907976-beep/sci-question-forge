@@ -1,0 +1,154 @@
+{
+  "version": "1.0",
+  "lastUpdated": "2026-04-07",
+  "description": "Physical chemistry constants and properties validation",
+  "constants": {
+    "avogadro_constant": {
+      "symbol": "N_A",
+      "value": 6.02214076e23,
+      "unit": "mol^-1",
+      "tolerance": 0,
+      "description": "Avogadro constant"
+    },
+    "gas_constant": {
+      "symbol": "R",
+      "value": 8.314,
+      "unit": "J/(mol·K)",
+      "tolerance": 0,
+      "description": "Universal gas constant"
+    },
+    "boltzmann_constant": {
+      "symbol": "k_B",
+      "value": 1.380649e-23,
+      "unit": "J/K",
+      "tolerance": 0,
+      "description": "Boltzmann constant"
+    },
+    "faraday_constant": {
+      "symbol": "F",
+      "value": 96485.3,
+      "unit": "C/mol",
+      "tolerance": 1,
+      "description": "Faraday constant"
+    },
+    "speed_of_light": {
+      "symbol": "c",
+      "value": 299792458,
+      "unit": "m/s",
+      "tolerance": 0,
+      "description": "Speed of light"
+    }
+  },
+  "crystallStructures": {
+    "BaCO3": {
+      "name": "Barium Carbonate",
+      "correctStructure": "Orthorhombic",
+      "commonMistakes": ["Calcite structure", "Trigonal", "Hexagonal"],
+      "maddelungConstant": null,
+      "notes": "Must NOT use calcite (trigonal) structure"
+    },
+    "CaF2": {
+      "name": "Calcium Fluoride",
+      "correctStructure": "Fluorite",
+      "commonMistakes": ["NaCl structure", "Wurtzite"],
+      "maddelungConstant": 5.0388,
+      "notes": "Classic fluorite structure type"
+    },
+    "CeF3": {
+      "name": "Cerium(III) Fluoride",
+      "correctStructure": "Hexagonal (Tysonite-type)",
+      "commonMistakes": ["Fluorite structure", "Cubic"],
+      "maddelungConstant": null,
+      "notes": "Rare-earth trifluoride, NOT fluorite structure"
+    },
+    "NaCl": {
+      "name": "Sodium Chloride",
+      "correctStructure": "Rock salt",
+      "commonMistakes": ["Fluorite structure", "Cesium chloride"],
+      "maddelungConstant": 1.7476,
+      "notes": "Classic rock salt structure type"
+    }
+  },
+  "thermodynamicProcesses": {
+    "isothermal": {
+      "name": "Isothermal Process",
+      "conditions": "T = constant",
+      "implications": [
+        "If pressure increases, volume must decrease (Boyle's Law)",
+        "If volume increases, pressure must decrease",
+        "ΔU = 0 for ideal gas",
+        "Q = W = nRT·ln(V_f/V_i)"
+      ],
+      "violations": [
+        "Pressure increases but volume also increases",
+        "Pressure and volume change in same direction"
+      ]
+    },
+    "isobaric": {
+      "name": "Isobaric Process",
+      "conditions": "P = constant",
+      "implications": [
+        "If temperature increases, volume must increase (Charles's Law)",
+        "If temperature decreases, volume must decrease",
+        "ΔU = nC_v·ΔT",
+        "Q = nC_p·ΔT"
+      ],
+      "violations": [
+        "Temperature increases but volume decreases",
+        "Temperature and volume change in opposite directions"
+      ]
+    },
+    "isochoric": {
+      "name": "Isochoric Process",
+      "conditions": "V = constant",
+      "implications": [
+        "If temperature increases, pressure must increase (Gay-Lussac's Law)",
+        "If temperature decreases, pressure must decrease",
+        "W = 0",
+        "ΔU = Q = nC_v·ΔT"
+      ],
+      "violations": [
+        "Temperature increases but pressure decreases",
+        "Temperature and pressure change in opposite directions"
+      ]
+    },
+    "adiabatic": {
+      "name": "Adiabatic Process",
+      "conditions": "Q = 0 (no heat transfer)",
+      "implications": [
+        "System is thermally isolated",
+        "ΔU = -W",
+        "Expansion causes temperature decrease",
+        "Compression causes temperature increase"
+      ],
+      "violations": [
+        "Heat transfer mentioned (contradicts adiabatic assumption)",
+        "Cooling during compression without stating external cooling"
+      ]
+    }
+  },
+  "elementMolarMasses": {
+    "H": 1.008,
+    "C": 12.011,
+    "N": 14.007,
+    "O": 15.999,
+    "F": 18.998,
+    "Cl": 35.45,
+    "Ba": 137.327,
+    "Ca": 40.078,
+    "Ce": 140.116,
+    "Al": 26.982,
+    "Fe": 55.845,
+    "Cu": 63.546,
+    "Zn": 65.38,
+    "Br": 79.904,
+    "I": 126.90
+  },
+  "validationRules": [
+    "All physical constants must match standard values exactly (no modifications)",
+    "Crystal structures must match known compounds (no fabrication)",
+    "Thermodynamic processes must satisfy fundamental laws (no contradictions)",
+    "Element molar masses must be within ±0.01 g/mol of reference values",
+    "All assumptions (ideal/non-ideal, phase changes, reversibility) must be explicit"
+  ]
+}

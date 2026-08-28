@@ -1,0 +1,13 @@
+{
+  "charsPerToken": 0.8,
+  "currency": "CNY",
+  "models": {
+    "gpt-4o": { "inputPer1M": 20.0, "outputPer1M": 60.0 },
+    "gpt-4o-mini": { "inputPer1M": 1.0, "outputPer1M": 4.0 },
+    "claude-3-5-sonnet": { "inputPer1M": 20.0, "outputPer1M": 100.0 },
+    "claude-3-5-haiku": { "inputPer1M": 2.0, "outputPer1M": 10.0 },
+    "deepseek-chat": { "inputPer1M": 1.0, "outputPer1M": 4.0 },
+    "deepseek-reasoner": { "inputPer1M": 4.0, "outputPer1M": 16.0 },
+    "qwen-plus": { "inputPer1M": 1.0, "outputPer1M": 4.0 }
+  }
+}

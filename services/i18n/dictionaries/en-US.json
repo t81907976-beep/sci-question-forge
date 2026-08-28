@@ -1,0 +1,59 @@
+{
+  "app_title": "Chemistry Logic Adversarial Problem Generator",
+  "app_description": "Generate extremely challenging chemistry competition problems using large language models",
+
+  "nav_language": "Language",
+  "nav_mode": "Generation Mode",
+  "nav_help": "Help",
+
+  "mode_single": "Single Problem",
+  "mode_batch": "Batch Generation",
+  "mode_knowledge_points": "By Knowledge Points",
+
+  "input_topic": "Chemistry Topic",
+  "input_topic_placeholder": "e.g.: Chemical Equilibrium",
+  "input_count": "Number of Problems",
+  "input_count_placeholder": "1-100",
+  "input_trap_count": "Trap Count (0-5)",
+  "input_trap_placeholder": "Recommended: 2-3",
+  "input_language": "Problem Language",
+  "input_sheets_url": "Google Sheets URL (Optional)",
+  "input_sheets_placeholder": "https://script.google.com/macros/s/.../exec",
+
+  "button_generate": "Generate",
+  "button_generating": "Processing...",
+  "button_export": "Export JSON",
+  "button_export_sheets": "Export to Sheets",
+  "button_reset": "Reset",
+
+  "stage_idle": "Idle",
+  "stage_node0": "Node 0: Input Validation",
+  "stage_node1": "Node 1: Knowledge Base Query",
+  "stage_node2": "Node 2: Base Problem Generation",
+  "stage_node3": "Node 3: Trap Injection",
+  "stage_node4": "Node 4: Consistency Validation",
+  "stage_node5": "Node 5: Sanity Check & Solving",
+  "stage_node7": "Node 7: Final Assembly",
+  "stage_completed": "Completed",
+  "stage_error": "Error",
+
+  "result_problem_title": "Problem",
+  "result_topic": "Topic",
+  "result_traps": "Traps",
+  "result_detail_original": "Original Problem",
+  "result_detail_modified": "Problem with Traps",
+  "result_detail_core_data": "Core Data",
+  "result_detail_distractor": "Distractor Data",
+  "result_detail_solution": "Safe Solution",
+  "result_detail_answer": "Final Answer",
+
+  "error_generation_failed": "Generation Failed",
+  "error_sanity_check": "Sanity Check Failed",
+  "error_invalid_input": "Invalid Input",
+  "error_network": "Network Error",
+
+  "warning_url_format": "URL format may be incorrect",
+  "info_saved": "Saved",
+  "info_saved_count": "Problems Saved",
+  "info_error_count": "Save Errors"
+}

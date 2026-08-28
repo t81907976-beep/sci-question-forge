@@ -1,0 +1,59 @@
+{
+  "app_title": "化学逻辑对抗生成器",
+  "app_description": "通过大模型生成极高难度的化学竞赛题目",
+
+  "nav_language": "语言选择",
+  "nav_mode": "生题模式",
+  "nav_help": "帮助",
+
+  "mode_single": "单题模式",
+  "mode_batch": "批量生题",
+  "mode_knowledge_points": "按知识点生题",
+
+  "input_topic": "化学主题",
+  "input_topic_placeholder": "例如：化学平衡",
+  "input_count": "生题数量",
+  "input_count_placeholder": "1-100",
+  "input_trap_count": "陷阱数量 (0-5)",
+  "input_trap_placeholder": "建议值：2-3",
+  "input_language": "题目语言",
+  "input_sheets_url": "Google Sheets URL (可选)",
+  "input_sheets_placeholder": "https://script.google.com/macros/s/.../exec",
+
+  "button_generate": "开始生成",
+  "button_generating": "正在处理...",
+  "button_export": "导出 JSON",
+  "button_export_sheets": "导出到 Sheets",
+  "button_reset": "重置",
+
+  "stage_idle": "待命",
+  "stage_node0": "节点 0: 输入验证",
+  "stage_node1": "节点 1: 知识库查询",
+  "stage_node2": "节点 2: 生成基础题",
+  "stage_node3": "节点 3: 陷阱注入",
+  "stage_node4": "节点 4: 一致性校验",
+  "stage_node5": "节点 5: 防伪审查与求解",
+  "stage_node7": "节点 7: 最终组装",
+  "stage_completed": "完成",
+  "stage_error": "错误",
+
+  "result_problem_title": "问题",
+  "result_topic": "主题",
+  "result_traps": "陷阱",
+  "result_detail_original": "原始题目",
+  "result_detail_modified": "含陷阱题目",
+  "result_detail_core_data": "核心数据",
+  "result_detail_distractor": "干扰数据",
+  "result_detail_solution": "安全解答",
+  "result_detail_answer": "最终答案",
+
+  "error_generation_failed": "生题失败",
+  "error_sanity_check": "防伪审查失败",
+  "error_invalid_input": "无效输入",
+  "error_network": "网络错误",
+
+  "warning_url_format": "URL 格式可能不正确",
+  "info_saved": "已保存",
+  "info_saved_count": "已保存题目数",
+  "info_error_count": "保存失败数"
+}

@@ -1,0 +1,55 @@
+你是一位资深化学教育专家。请生成一道以【${randomBackground}】为背景的高质量化学题目。
+
+【重要】：这是一道"白板题"，必须：
+1. 题目清晰明确，无陷阱
+2. 所有条件充分且必要
+3. 有唯一正确解
+4. 体现真实的${randomBackground}场景
+
+【主题】：${input.topic}
+【陷阱数预期】：${input.trapCount}
+【是否允许查表】：${input.allowTableLookup ? '是' : '否'}
+
+${textbookConstraints}
+
+【事实纪律（强制执行）】：
+1. 绝对禁止篡改基础物理常数：
+   - 阿伏伽德罗常数: N_A = 6.02214076×10²³ mol⁻¹
+   - 气体常数: R = 8.314 J/(mol·K)
+   - 玻尔兹曼常数: k_B = 1.380649×10⁻²³ J/K
+
+2. 晶体结构与物质必须严格对应
+
+3. 物理边界条件必须严格自洽
+
+【逻辑深度与极限难度要求】：
+- 用户期望生成**极具挑战性、甚至能难倒顶尖大模型**的高难度化学题。
+- 你必须采用**化学学科顶级竞赛（如IChO）或研究生入学考试压轴题**的思维深度。
+- 绝对不要出那种"只需带入一个通用公式就能解出"的初级题目。
+- 题目应包含多步逻辑推演（至少 6 个独立步骤）。
+
+【题型角度规则（严格执行）】：
+${allowedAnglesText}
+
+【逻辑深度与学科特征】：
+${disciplineGuidance}
+
+【输出要求】：
+请返回一个 JSON 对象，包含以下字段：
+{
+  "problemId": "base_${problemNumber}_${Date.now()}",
+  "questionAngle": "本题核心考法关键词（2-5个字）",
+  "topic": "${input.topic}",
+  "scenario": "真实场景描述",
+  "originalProblemText": "完整的带数据文字的原始题干",
+  "coreData": {
+    "物理量名称": {"value": 数值, "unit": "单位"}
+  },
+  "requiredAnswer": "求解目标",
+  "referenceSteps": ["步骤1", "步骤2", ..., "步骤6+"]
+}
+
+- 题目必须基于真实的化学原理和场景
+- originalProblemText 必须是一段已经"填好所有数据"的流畅文本
+- coreData 是从 originalProblemText 中提取出的核心已知条件
+- 解题路径应包含对应的关键理论推导步骤
