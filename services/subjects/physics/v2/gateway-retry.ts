@@ -24,8 +24,9 @@
  * 模型答不出来、JSON 解析失败都不在此列：那种情况重试只是重复烧钱，还会掩盖真实问题。
  * 因此本包装器只套在 LLM 调用本身，parse 一律留在包装器外面。
  *
- * 数字判据用 \b 收边（机械版是裸 `502|503|504`）：避免 "position 503" 这类内容型
- * 错误信息里的巧合数字被误判成网关错误。
+ * 数字判据用 \b 收边（机械版是裸 `502|503|504`）：避免 "at position 5041" 这类内容型
+ * 错误信息里以状态码开头的偏移量被误判成网关错误。注意它防不住恰好独立成词的巧合
+ * （"position 503" 仍会命中），实测里这类偏移量都是四位以上，够用。
  */
 const GATEWAY_ERROR =
     /HTTP\/2|stream failed|Upstream|temporarily unavailable|terminated|ECONNRESET|socket hang up|other side closed|Concurrency|rate limit|\b(?:429|500|502|503|504)\b/i;
