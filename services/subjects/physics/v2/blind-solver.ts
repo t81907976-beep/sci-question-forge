@@ -2,6 +2,7 @@ import { callLLM } from "../../../llmClient";
 import { callLLMTracked } from "../costTracker";
 import type { V2QuestionDraft } from "./generator";
 import { cleanAndParseJSON } from "../../../utils/jsonCleaner";
+import { callWithGatewayRetry } from "./gateway-retry";
 
 /**
  * V2 Node A4: Blind Solver
@@ -37,18 +38,22 @@ ${draft.questionText}
   "blindFinalAnswer": "最终答案（含数值和单位）"
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, {
-            model: 'reasoning',
-            systemPrompt: "你是物理专家，请独立解答题目，严格按 JSON 格式输出。",
-            temperature: 0.1
-        }, problemIndex)
-        : await callLLM(prompt, {
-            model: 'reasoning',
-            systemPrompt: "你是物理专家，请独立解答题目，严格按 JSON 格式输出。",
-            temperature: 0.1
-        })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, {
+                model: 'reasoning',
+                systemPrompt: "你是物理专家，请独立解答题目，严格按 JSON 格式输出。",
+                temperature: 0.1,
+                reasoning: { effort: 'xhigh', summary: 'auto' }
+            }, problemIndex)
+            : callLLM(prompt, {
+                model: 'reasoning',
+                systemPrompt: "你是物理专家，请独立解答题目，严格按 JSON 格式输出。",
+                temperature: 0.1,
+                reasoning: { effort: 'xhigh', summary: 'auto' }
+            }),
+        'A4 盲解',
+    )).trim();
 
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {

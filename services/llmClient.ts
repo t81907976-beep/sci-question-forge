@@ -248,7 +248,7 @@ export async function callLLM(
     const callId = `llm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
     const promptLen = prompt.length;
     console.log(
-        `[LLM CALL START] id=${callId} provider=${activeConfig.provider} requested=${requestedModel} resolved=${modelName} responseFormat=${options.responseFormat ?? 'text'} temperature=${options.temperature ?? 0.7} reasoningEffort=${options.reasoning?.effort ?? 'medium'} promptLen=${promptLen}`
+        `[LLM CALL START] id=${callId} provider=${activeConfig.provider} requested=${requestedModel} resolved=${modelName} responseFormat=${options.responseFormat ?? 'text'} temperature=${options.temperature ?? 0.7} reasoningEffort=${options.reasoning?.effort ?? 'unset(未发送)'} promptLen=${promptLen}`
     );
 
     // OneAPI: Claude → Anthropic SDK (/v1/messages)，非 Claude → OpenAI SDK (/v1/chat/completions)
@@ -403,6 +403,15 @@ export async function callLLM(
             // reasoning 参数（只对数学和 GPT 模型有效）
             if (options.reasoning && modelName.toLowerCase().includes('gpt')) {
                 (createOptions as any).reasoning = options.reasoning;
+                // 本分支走的是 /chat/completions，该端点的官方推理档位字段是扁平的
+                // reasoning_effort；reasoning: { effort } 是 /responses 端点的形状，
+                // 走 chat 路由时可能被网关静默丢弃（表现为 reasoning=0 chars）。
+                // 两个都发，谁生效算谁。'xhigh' 不是 OpenAI 合法取值，映射成 'high'
+                // 以免严格校验的网关返回 400；'none'/'minimal' 表示不要思考，直接不发。
+                const effort = options.reasoning.effort;
+                if (effort && effort !== 'none' && effort !== 'minimal') {
+                    (createOptions as any).reasoning_effort = effort === 'xhigh' ? 'high' : effort;
+                }
             }
 
             if (options.responseFormat === 'json') {

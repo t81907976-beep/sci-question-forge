@@ -2,6 +2,8 @@ import { callLLM } from "../../../llmClient";
 import { callLLMTracked } from "../costTracker";
 import type { V2QuestionDraft } from "./generator";
 import { cleanAndParseJSON } from "../../../utils/jsonCleaner";
+import { callWithGatewayRetry } from "./gateway-retry";
+import { sanitizeCoreData } from "./coredata-sanitizer";
 
 /**
  * V2 Node A2/A3: Question Reviewer + Repair Loop
@@ -21,6 +23,14 @@ export interface ReviewResult {
     difficultyIssues: string[];  // Too easy, too hard, not competition-level
     depthIssues: string[];       // Template-like, missing branch, missing implicit constraint
     overallVerdict: string;
+    /**
+     * 不通过时，问题落在哪一层：
+     *   'structural' —— 题面本身有问题（条件不自洽/量级荒谬/难度不够/缺判断分叉/教材原型）
+     *   'answer_only' —— 题面合格，只有参考答案的数值、算术或单位换算出错
+     * 后者是 A5 比较器的本职工作（comparator 明确要求重写一版正确解答），不该在 A2/A3 就丢题。
+     * 由审查模型自己填；缺省按 'structural' 处理（保守）。
+     */
+    blockingScope?: 'structural' | 'answer_only';
 }
 
 export interface ReviewedDraft {
@@ -28,7 +38,9 @@ export interface ReviewedDraft {
     reviewResult: ReviewResult;
     repairCycles: number;
     needsRegeneration: boolean;
-    degradationLevel: 'stable' | 'oscillating' | 'diverging' | 'unrepairable';
+    // 'answer-repair-pending' 是本层新增：题面已合格、仅参考答案数值待 A5 修复。
+    // orchestrator 只做 `!== 'stable'` 判断并写入 metadata，新增字面量对其它学科无影响。
+    degradationLevel: 'stable' | 'oscillating' | 'diverging' | 'unrepairable' | 'answer-repair-pending';
     degradationReason: string;
 }
 
@@ -307,15 +319,23 @@ ${draft.referenceAnswer}
   "validityIssues": ["问题1"],
   "difficultyIssues": ["问题1"],
   "depthIssues": ["问题1"],
+  "blockingScope": "structural" 或 "answer_only",
   "overallVerdict": "一句话总结审查结论"
 }
 
-注意：三个维度全部无问题才可 passed 为 true。depthIssues 中需明确说明是哪条不满足。`;
+注意：三个维度全部无问题才可 passed 为 true。depthIssues 中需明确说明是哪条不满足。
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'reasoning', temperature: 0.2 }, problemIndex)
-        : await callLLM(prompt, { model: 'reasoning', temperature: 0.2 })
-    ).trim();
+blockingScope 填写规则（passed 为 true 时填 "answer_only" 即可，不影响判定）：
+- 填 "answer_only" 的**充分必要**条件：题面本身完全合格——维度1条件自洽、维度1.5量级可实现、维度2难度达标、维度3的判断分叉/隐含条件/非教材原型全部满足——**剩余问题只出现在参考答案的数值计算、算术、单位换算或代入错误上**，题面一个字都不用改。
+- 只要题面需要改动（缺条件、量级荒谬、难度不够、缺判断分叉、缺隐含条件、命中教材原型），一律填 "structural"。
+- 判断标准是「改答案还是改题面」，不是「问题严重不严重」。参考答案差十倍量级也属于 "answer_only"，因为改的是答案。`;
+
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'reasoning', temperature: 0.2, reasoning: { effort: 'xhigh', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'reasoning', temperature: 0.2, reasoning: { effort: 'xhigh', summary: 'auto' } }),
+        'A2 审查',
+    )).trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
         return {
@@ -323,20 +343,43 @@ ${draft.referenceAnswer}
             validityIssues: ["Failed to parse review response"],
             difficultyIssues: [],
             depthIssues: [],
-            overallVerdict: "审查响应解析失败"
+            overallVerdict: "审查响应解析失败",
+            blockingScope: 'structural'
         };
     }
     try {
-        return cleanAndParseJSON(jsonMatch[0]) as ReviewResult;
+        return normalizeReviewResult(cleanAndParseJSON(jsonMatch[0]));
     } catch (e) {
         return {
             passed: false,
             validityIssues: [`JSON parse failed: ${(e as Error).message}`],
             difficultyIssues: [],
             depthIssues: [],
-            overallVerdict: "审查响应解析失败"
+            overallVerdict: "审查响应解析失败",
+            blockingScope: 'structural'
         };
     }
+}
+
+/**
+ * 审查输出归一化。
+ *
+ * 原来是 `as ReviewResult` 裸转型：审查模型少写一个 depthIssues 字段，下游
+ * `review.depthIssues.length` 就抛 TypeError，冒到 orchestrator 唯一的 catch 里整题变 null——
+ * 和网关断流是同一类「一次抖动报废整题」的损耗。这里全部兜成数组。
+ */
+function normalizeReviewResult(parsed: any): ReviewResult {
+    const toStringArray = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter(Boolean).map(String) : [];
+    const scope = parsed?.blockingScope;
+    return {
+        passed: Boolean(parsed?.passed),
+        validityIssues: toStringArray(parsed?.validityIssues),
+        difficultyIssues: toStringArray(parsed?.difficultyIssues),
+        depthIssues: toStringArray(parsed?.depthIssues),
+        overallVerdict: String(parsed?.overallVerdict ?? ""),
+        blockingScope: scope === 'answer_only' ? 'answer_only' : 'structural',
+    };
 }
 
 // ─── Deep Repair ────────────────────────────────────────────────────────────
@@ -372,7 +415,9 @@ ${otherList}
 4. 【强制-量纲壁垒】：题目中至少包含一处单位混用（非SI与SI混用）或两个外观相似但含义不同的物理量同时出现
 5. 若原题是教材模板：必须更换背景（如从质点力学换到连续介质，或从真空电磁场换到介质中的电磁场），并引入跨概念融合
 6. 若题目缺少物理常数（如 ε₀、N_A、R、k_B、F）：在题目和答案中显式列出所需常数及其精确数值，确保无需查表即可解题
-7. 修复后推理步骤必须 ≥5 步
+7. 【强制-禁止把结论补进题面】若需要向题面补充数据，只能补**原始给定量**（几何尺寸、材料参数、外加场强、实验读数等独立输入）。绝对禁止把由这些量推导出来的中间量、比值、"在某点求值"的量或最终答案写进题面——那等于把答案告诉解题者，题目防御力归零。缺条件的正确修法是补上游的原始输入，不是补下游的计算结果。
+8. 【coreData 语义边界】coreData 只列题面里字面写出的原始已知量，写法与题面一致；推导量/中间量/结果量/答案一律不填，也不得出现计算残留的浮点尾巴（如 11.623892818）
+9. 修复后推理步骤必须 ≥5 步
 
 输出必须是严格 JSON，不含 markdown 代码块：
 {
@@ -386,10 +431,12 @@ ${otherList}
   "referenceSteps": ["步骤1", "步骤2", "步骤3", "步骤4", "步骤5"]
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'reasoning', temperature: 0.5 }, problemIndex)
-        : await callLLM(prompt, { model: 'reasoning', temperature: 0.5 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'reasoning', temperature: 0.5, reasoning: { effort: 'high', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'reasoning', temperature: 0.5, reasoning: { effort: 'high', summary: 'auto' } }),
+        `A3 深度修复(第${cycleNumber}轮)`,
+    )).trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return draft;
 
@@ -398,6 +445,8 @@ ${otherList}
         repaired.problemId = draft.problemId;
         repaired.knowledgePoint = draft.knowledgePoint;
         repaired.chosenDimension = draft.chosenDimension;
+        // 修复会整体重写 coreData，脏数据同样会重新出现，故每轮都净化一次。
+        repaired.removedCoreData = sanitizeCoreData(repaired, `A3 深度修复(第${cycleNumber}轮)`);
         return repaired;
     } catch (e) {
         console.warn(`[Reviewer] deepRepair JSON parse failed (cycle ${cycleNumber}):`, e);
@@ -433,7 +482,9 @@ ${issueList}
 2. 若涉及物理常数缺失（如 ε₀、N_A、R、k_B、F）：在题目和答案中补充该常数的精确数值（例：真空介电常数 ε₀ = 8.854×10⁻¹² C²/(N·m²)），确保题目自洽
 3. 若数值超出合理范围：修正为物理上合理的数值，并同步更新 coreData 和答案
 4. 保持逻辑深度不降低（不得删除已有的判断分叉或隐含条件）
-5. 修复后重新给出与修正后题目完全对应的参考答案
+5. 【强制-禁止把结论补进题面】若审查意见是"题面缺条件"，只能补**原始给定量**（几何尺寸、材料参数、外加场强、实验读数等独立输入）。绝对禁止把由这些量推导出来的中间量、比值、"在某点求值"的量或最终答案写进题面——那等于把答案告诉解题者，题目防御力归零。缺条件的正确修法是补上游的原始输入，不是补下游的计算结果。
+6. 【coreData 语义边界】coreData 只列题面里字面写出的原始已知量，写法与题面一致；推导量/中间量/结果量/答案一律不填，也不得出现计算残留的浮点尾巴（如 0.03723369）
+7. 修复后重新给出与修正后题目完全对应的参考答案
 
 输出必须是严格 JSON，不含 markdown 代码块：
 {
@@ -447,10 +498,12 @@ ${issueList}
   "referenceSteps": ["步骤1", "步骤2", "步骤3", "步骤4", "步骤5"]
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'reasoning', temperature: 0.2 }, problemIndex)
-        : await callLLM(prompt, { model: 'reasoning', temperature: 0.2 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'reasoning', temperature: 0.2, reasoning: { effort: 'high', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'reasoning', temperature: 0.2, reasoning: { effort: 'high', summary: 'auto' } }),
+        `A3 细节修复(第${cycleNumber}轮)`,
+    )).trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return draft;
 
@@ -459,6 +512,8 @@ ${issueList}
         repaired.problemId = draft.problemId;
         repaired.knowledgePoint = draft.knowledgePoint;
         repaired.chosenDimension = draft.chosenDimension;
+        // 同 deepRepair：修复整体重写 coreData，每轮都要净化。
+        repaired.removedCoreData = sanitizeCoreData(repaired, `A3 细节修复(第${cycleNumber}轮)`);
         return repaired;
     } catch (e) {
         console.warn(`[Reviewer] detailRepair JSON parse failed (cycle ${cycleNumber}):`, e);
@@ -477,6 +532,69 @@ async function repairQuestion(
         return deepRepairQuestion(draft, review, cycleNumber, problemIndex);
     }
     return detailRepairQuestion(draft, review, cycleNumber, problemIndex);
+}
+
+/**
+ * 「仅答案问题」放行。
+ *
+ * 起因（0827 真机批量）：
+ *   [V2] Problem 3: review not fully passed after 2 repair(s).
+ *   题目整体物理结构完整、难度和判断分叉均达到较高竞赛或研究生考试水平…
+ *   但参考答案第(8)问的碰撞频率及平均自由程存在十倍数量级错误
+ * 审查自己承认题面全部合格，只有参考答案算错，orchestrator 仍按 `!passed` 把整题丢弃。
+ * 而 A5 比较器（comparator）的职责恰好就是这件事——它被明确要求「必须在 finalSolutionText
+ * 中重写一版正确、完整、可直接导出的标准解答」，还带 solutionRepaired 字段。丢弃点在 A2/A3，
+ * 修复能力在 A4/A5，题永远等不到能救它的那一步。
+ *
+ * 所以这里在物理层把这类题放行到 A4/A5，代价是打上降级标记：
+ *   degradationLevel !== 'stable' → orchestrator 把 qualityLevel 判为 'degraded'，
+ * 永远不会被误标成 verified，人工质检照常能筛出来。原始 issues 和 overallVerdict 全部保留，
+ * 不隐藏任何审查意见。
+ *
+ * 三道结构性安全网，防止审查模型乱填 answer_only 把模板题混进来：
+ *   1. depthIssues 必须为空（3A 判断分叉 / 3B 隐含条件 / 3D 教材原型全过）——防御力全靠这一维
+ *   2. difficultyIssues 必须为空
+ *   3. blockingScope 必须由审查显式填 'answer_only'
+ * 三条缺一即维持丢弃。
+ */
+function answerOnlyPassthrough(result: ReviewedDraft): ReviewedDraft {
+    const review = result.reviewResult;
+    if (review.passed) return result;
+
+    const noIssuesAtAll =
+        review.validityIssues.length === 0 &&
+        review.difficultyIssues.length === 0 &&
+        review.depthIssues.length === 0;
+
+    // 审查自相矛盾：判不通过却说不出任何一条问题。这是审查输出故障，不是题的问题。
+    if (noIssuesAtAll) {
+        console.warn(`[Reviewer] 审查判不通过但未给出任何具体问题（审查输出自相矛盾），放行并标记降级：${review.overallVerdict}`);
+        return {
+            ...result,
+            reviewResult: { ...review, passed: true },
+            needsRegeneration: false,
+            degradationLevel: result.degradationLevel !== 'stable' ? result.degradationLevel : 'answer-repair-pending',
+            degradationReason: result.degradationReason
+                || `审查判不通过但零具体问题（审查输出自相矛盾），已放行交人工质检 — ${review.overallVerdict}`,
+        };
+    }
+
+    const answerOnly =
+        review.blockingScope === 'answer_only' &&
+        review.depthIssues.length === 0 &&
+        review.difficultyIssues.length === 0;
+    if (!answerOnly) return result;
+
+    const deferred = review.validityIssues.slice(0, 3).join('；');
+    console.warn(`[Reviewer] 题面已合格、仅参考答案有数值问题，放行至 A4/A5 修复并标记降级：${deferred}`);
+    return {
+        ...result,
+        reviewResult: { ...review, passed: true },
+        needsRegeneration: false,
+        degradationLevel: result.degradationLevel !== 'stable' ? result.degradationLevel : 'answer-repair-pending',
+        degradationReason: result.degradationReason
+            || `仅参考答案数值问题，已交 A4/A5 修复，需人工复核答案 — ${deferred}`,
+    };
 }
 
 export async function reviewAndRepair(draft: V2QuestionDraft, problemIndex?: number): Promise<ReviewedDraft> {
@@ -500,7 +618,7 @@ export async function reviewAndRepair(draft: V2QuestionDraft, problemIndex?: num
 
     const deg1 = detectDegradation(allReviews, repairCycles);
     if (deg1.degradationLevel !== 'stable') {
-        return { draft: current, reviewResult: review1, repairCycles, needsRegeneration: true, ...deg1 };
+        return answerOnlyPassthrough({ draft: current, reviewResult: review1, repairCycles, needsRegeneration: true, ...deg1 });
     }
 
     if (review1.passed) {
@@ -512,7 +630,7 @@ export async function reviewAndRepair(draft: V2QuestionDraft, problemIndex?: num
         review1.validityIssues.length === 0 &&
         review1.difficultyIssues.length === 0) {
         // All issues resolved but still not passed (edge case) — exit
-        return { draft: current, reviewResult: review1, repairCycles, needsRegeneration: false, degradationLevel: 'stable', degradationReason: '' };
+        return answerOnlyPassthrough({ draft: current, reviewResult: review1, repairCycles, needsRegeneration: false, degradationLevel: 'stable', degradationReason: '' });
     }
 
     current = await repairQuestion(current, review1, 2, problemIndex);
@@ -523,12 +641,12 @@ export async function reviewAndRepair(draft: V2QuestionDraft, problemIndex?: num
     allReviews.push(review2);
 
     const degFinal = detectDegradation(allReviews, repairCycles);
-    return {
+    return answerOnlyPassthrough({
         draft: current, reviewResult: review2, repairCycles,
         needsRegeneration: !review2.passed,
         degradationLevel: degFinal.degradationLevel,
         degradationReason: degFinal.degradationReason,
-    };
+    });
 }
 
 function detectDegradation(
