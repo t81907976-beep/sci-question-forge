@@ -57,6 +57,11 @@ export async function callLLMTracked(
         temperature?: number;
         responseFormat?: 'json' | 'text';
         systemPrompt?: string;
+        // 推理档位需要原样透传给 callLLM，否则 GPT-5.x 会以"无思考"模式跑整条 A0-A5。
+        reasoning?: {
+            effort: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh';
+            summary: 'auto' | 'concise' | 'detailed';
+        };
     } = {},
     problemIndex: number
 ): Promise<string> {

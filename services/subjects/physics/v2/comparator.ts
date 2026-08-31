@@ -3,6 +3,7 @@ import { callLLMTracked } from "../costTracker";
 import { cleanAndParseJSON } from "../../../utils/jsonCleaner";
 import type { V2QuestionDraft } from "./generator";
 import type { BlindSolverResult } from "./blind-solver";
+import { callWithGatewayRetry } from "./gateway-retry";
 
 /**
  * V2 Node A5: Answer Comparator
@@ -122,10 +123,12 @@ ${blindResult.blindAnswer}
   "notes": "裁判备注（如有争议点）"
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'default', temperature: 0.1 }, problemIndex)
-        : await callLLM(prompt, { model: 'default', temperature: 0.1 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'default', temperature: 0.1, reasoning: { effort: 'xhigh', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'default', temperature: 0.1, reasoning: { effort: 'xhigh', summary: 'auto' } }),
+        'A5 答案比较',
+    )).trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
         return fallbackComparison(draft, "Failed to parse comparator response");

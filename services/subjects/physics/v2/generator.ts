@@ -3,6 +3,8 @@ import { callLLMTracked } from "../costTracker";
 import type { KPAnalysisResult } from "./kp-analyzer";
 import { cleanAndParseJSON } from "../../../utils/jsonCleaner";
 import { getV2Strategies, getV2Constraints } from "../disciplines";
+import { callWithGatewayRetry } from "./gateway-retry";
+import { sanitizeCoreData } from "./coredata-sanitizer";
 
 /**
  * V2 Node A1: Question Generator
@@ -20,6 +22,8 @@ export interface V2QuestionDraft {
     requiredAnswer: string;
     referenceAnswer: string;
     referenceSteps: string[];
+    /** 被 coredata-sanitizer 剔除的"题面不可见"条目，仅用于日志/排查，不参与下游逻辑 */
+    removedCoreData?: string[];
 }
 
 export async function generateQuestionWithAnswer(
@@ -72,6 +76,11 @@ ${singleQuestionConstraint}1. 题目必须清晰明确，条件充分且必要�
    ⚠️ 若知识点描述中含"须/禁止/自行"等对命题者的约束，那是给你（命题者）的要求，绝对不可复述或改写进题面。
 10. 【不可分辨性-强制】题目须包含 ≥${minIndistinguishablePairs} 组"两种不同物理机制给出同一观测特征"的情形，解题者必须自行意识到二者简并、并给出分离方案；但题面不得提示"存在两种机制"或"单一手段不足"
 11. 【禁良定逆问题】若采用逆问题结构，反解路径不得唯一且有闭式；必须是欠定/简并的，或需额外物理判据才能定解。给定观测量直接反代一条固定公式链即可求出参数的逆问题，视为退化题
+12. 【coreData 语义边界-强制】coreData 只能列**题面里字面写出的原始已知量**，一项不多一项不少：
+   - 必须满足：该数值在 questionText 里原样出现，写法与题面完全一致（题面写 1.85，coreData 就填 1.85）
+   - 严禁填入任何由已知量推导出来的量：中间结果（如由 R=1.85 m 算出的周期长度 L=2πR=11.623892818）、比值（r₀/a）、"在某点求值"的量（B(r\*)、r\*处β）、以及最终答案本身
+   - 严禁出现计算残留的浮点尾巴（如 9.42477796077、0.03723369）——原始给定量应是人写得出的有效数字
+   - 判据一句话：**如果这个数是你算出来的，它就不属于 coreData**；把结果量写进 coreData 会诱导后续环节把答案补进题面，直接摧毁题目防御力
 ${disciplineConstraints}
 
 【结构性防御铁律（确保题目固有复杂性，不依赖AI弱点）】：
@@ -104,15 +113,18 @@ ${disciplineStrategies}
   "coreData": {
     "物理量名称": {"value": 数值, "unit": "单位"}
   },
+  ⚠️ coreData 只填题面字面给出的原始已知量，数值写法与题面一致；推导量/中间量/结果量/答案一律不填
   "requiredAnswer": "求解目标",
   "referenceAnswer": "完整分步解答，含公式推导和数值计算",
   "referenceSteps": ["推理动作1(含物理判断)", "推理动作2", "...至少${minReasoningActs}个推理动作,其中须含对诱导错误路径的排除"]
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'reasoning', temperature: 0.85 }, problemIndex)
-        : await callLLM(prompt, { model: 'reasoning', temperature: 0.85 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'reasoning', temperature: 0.85, reasoning: { effort: 'high', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'reasoning', temperature: 0.85, reasoning: { effort: 'high', summary: 'auto' } }),
+        'A1 生题',
+    )).trim();
     const draft = cleanAndParseJSON(raw) as V2QuestionDraft;
 
     if (!draft.questionText || !draft.referenceAnswer) {
@@ -140,6 +152,11 @@ ${disciplineStrategies}
             console.warn(`[V2 A1] 题面改写失败，保留原题面:`, e);
         }
     }
+
+    // ── coreData 语义净化：剔除"题面不可见"的推导量/结果量 ────────────────
+    // 放在题面改写之后：改写可能动过题面文字，必须对最终题面判可见性。
+    // prompt 里已经把语义边界写死，但同样不可靠（0827 实测 7/9 题命中），故加代码层兜底。
+    draft.removedCoreData = sanitizeCoreData(draft, 'A1');
 
     return draft;
 }
@@ -186,10 +203,12 @@ ${draft.questionText}
 
 只输出改写后的题面纯文本，不要 JSON，不要 markdown 代码块，不要任何解释。`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'default', temperature: 0.2 }, problemIndex)
-        : await callLLM(prompt, { model: 'default', temperature: 0.2 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'default', temperature: 0.2, reasoning: { effort: 'medium', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'default', temperature: 0.2, reasoning: { effort: 'medium', summary: 'auto' } }),
+        'A1 题面改写',
+    )).trim();
 
     const cleaned = raw.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
     return cleaned.length >= 20 ? cleaned : null;

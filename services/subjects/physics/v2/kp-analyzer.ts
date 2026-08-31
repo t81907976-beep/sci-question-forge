@@ -1,6 +1,7 @@
 import { callLLM } from "../../../llmClient";
 import { callLLMTracked } from "../costTracker";
 import { cleanAndParseJSON } from "../../../utils/jsonCleaner";
+import { callWithGatewayRetry } from "./gateway-retry";
 
 /**
  * V2 Node A0: Knowledge Point Analyzer
@@ -79,10 +80,12 @@ export async function analyzeKnowledgePoint(
   "difficultySpec": { "minReasoningActs": 6, "minConceptsFused": 3, "minBranchPoints": 2, "minTrapPaths": 1, "minIndistinguishablePairs": 1 }
 }`;
 
-    const raw = (problemIndex !== undefined
-        ? await callLLMTracked(prompt, { model: 'default', temperature: 0.6 }, problemIndex)
-        : await callLLM(prompt, { model: 'default', temperature: 0.6 })
-    ).trim();
+    const raw = (await callWithGatewayRetry(
+        () => problemIndex !== undefined
+            ? callLLMTracked(prompt, { model: 'default', temperature: 0.6, reasoning: { effort: 'medium', summary: 'auto' } }, problemIndex)
+            : callLLM(prompt, { model: 'default', temperature: 0.6, reasoning: { effort: 'medium', summary: 'auto' } }),
+        'A0 知识点分析',
+    )).trim();
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
         // Graceful fallback
